@@ -1,398 +1,294 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.8)
 project(opencv_apps)
 
-## https://stackoverflow.com/questions/10984442/how-to-detect-c11-support-of-a-compiler-with-cmake
-if(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS "7")
-  execute_process(COMMAND ${CMAKE_C_COMPILER} -dumpversion OUTPUT_VARIABLE GCC_VERSION)
-  if (GCC_VERSION VERSION_GREATER 4.7 OR GCC_VERSION VERSION_EQUAL 4.7)
-    message(STATUS "C++11 activated.")
-    add_definitions("-std=gnu++11")
-  elseif(GCC_VERSION VERSION_GREATER 4.3 OR GCC_VERSION VERSION_EQUAL 4.3)
-    message(WARNING "C++0x activated. If you get any errors update to a compiler which fully supports C++11")
-    add_definitions("-std=gnu++0x")
-  else ()
-    message(FATAL_ERROR "C++11 needed. Therefore a gcc compiler with a version higher than 4.3 is needed.")
-  endif()
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-find_package(catkin REQUIRED COMPONENTS cv_bridge dynamic_reconfigure message_generation image_transport nodelet roscpp sensor_msgs std_msgs std_srvs class_loader)
+find_package(ament_cmake REQUIRED)
+find_package(rosidl_default_generators REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 
+# ---------------------------------------------------------------- interfaces
+# All .msg/.srv definitions are unchanged from the ROS 1 package (they already
+# use package-qualified std_msgs/Header and only float64/string/nested-custom
+# fields, so no field-level rework was needed for the ROS 2 IDL).
+rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/Point2D.msg"
+  "msg/Point2DStamped.msg"
+  "msg/Point2DArray.msg"
+  "msg/Point2DArrayStamped.msg"
+  "msg/Rect.msg"
+  "msg/RectArray.msg"
+  "msg/RectArrayStamped.msg"
+  "msg/Flow.msg"
+  "msg/FlowStamped.msg"
+  "msg/FlowArray.msg"
+  "msg/FlowArrayStamped.msg"
+  "msg/Size.msg"
+  "msg/Face.msg"
+  "msg/FaceArray.msg"
+  "msg/FaceArrayStamped.msg"
+  "msg/Line.msg"
+  "msg/LineArray.msg"
+  "msg/LineArrayStamped.msg"
+  "msg/RotatedRect.msg"
+  "msg/RotatedRectStamped.msg"
+  "msg/RotatedRectArray.msg"
+  "msg/RotatedRectArrayStamped.msg"
+  "msg/Circle.msg"
+  "msg/CircleArray.msg"
+  "msg/CircleArrayStamped.msg"
+  "msg/Moment.msg"
+  "msg/MomentArray.msg"
+  "msg/MomentArrayStamped.msg"
+  "msg/Contour.msg"
+  "msg/ContourArray.msg"
+  "msg/ContourArrayStamped.msg"
+  "srv/FaceRecognitionTrain.srv"
+  DEPENDENCIES std_msgs sensor_msgs
+)
+
+# ------------------------------------------------------------------ library
+# All opencv_apps::<X>Node component classes are compiled into this single
+# shared library (mirrors the ROS 1 package's single libopencv_apps.so
+# holding every nodelet plugin), each registered with
+# rclcpp_components_register_node() below.
+
+find_package(rclcpp REQUIRED)
+find_package(rclcpp_components REQUIRED)
+find_package(cv_bridge REQUIRED)
+find_package(image_transport REQUIRED)
+find_package(message_filters REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(OpenCV REQUIRED)
-message(STATUS "OpenCV VERSION: ${OpenCV_VERSION}")
-message(STATUS "OpenCV Components: ${OpenCV_LIB_COMPONENTS}")
-if(OpenCV_VERSION VERSION_LESS "3.0" OR TARGET opencv_optflow)
-  set(OPENCV_HAVE_OPTFLOW TRUE)
-endif()
-# Supporting CompressedImage in cv_bridge has been started from 1.11.9 (2015-11-29)
-# note : hydro 1.10.18, indigo : 1.11.13 ...
-# https://github.com/ros-perception/vision_opencv/pull/70
-if(cv_bridge_VERSION VERSION_LESS "1.11.9")
-  add_definitions("-DCV_BRIDGE_COMPRESSED_IMAGE_IS_NOT_SUPPORTED")
-endif()
-# Supporting CvtColorForDisplay in cv_bridge has been started from 1.11.9 (2015-11-29)
-if(cv_bridge_VERSION VERSION_LESS "1.11.9")
-  add_definitions("-DCV_BRIDGE_CVT_COLOR_FOR_DISPLAY_IS_NOT_SUPPORTED")
-endif()
-# Supporting CvtColorForDisplayOptions in cv_bridge has been started from 1.11.13 (2016-07-11)
-if(cv_bridge_VERSION VERSION_LESS "1.11.13")
-  add_definitions("-DCV_BRIDGE_CVT_COLOR_FOR_DISPLAY_OPTION_IS_NOT_SUPPORTED")
-endif()
-if(class_loader_VERSION VERSION_LESS "0.4.0")
-  add_definitions("-DUSE_PLUGINLIB_CLASS_LIST_MACROS_H")
-endif()
 
-# generate the dynamic_reconfigure config file
-generate_dynamic_reconfigure_options(
-  cfg/DiscreteFourierTransform.cfg
-  cfg/AddingImages.cfg
-  cfg/Smoothing.cfg
-  cfg/Morphology.cfg
-  cfg/Pyramids.cfg
-  cfg/EdgeDetection.cfg cfg/HoughLines.cfg cfg/HoughCircles.cfg
-  cfg/FindContours.cfg cfg/ConvexHull.cfg cfg/GeneralContours.cfg cfg/ContourMoments.cfg
-  cfg/FaceDetection.cfg
-  cfg/FaceRecognition.cfg
-  cfg/GoodfeatureTrack.cfg
-  cfg/CornerHarris.cfg
-  #
-  cfg/EqualizeHistogram.cfg
-  cfg/CamShift.cfg
-  cfg/FBackFlow.cfg
-  cfg/LKFlow.cfg
-  cfg/PeopleDetect.cfg
-  cfg/PhaseCorr.cfg
-  cfg/SegmentObjects.cfg
-  cfg/SimpleFlow.cfg
-  cfg/Threshold.cfg
-  cfg/RGBColorFilter.cfg
-  cfg/HLSColorFilter.cfg
-  cfg/HSVColorFilter.cfg
-  cfg/LabColorFilter.cfg
-  cfg/WatershedSegmentation.cfg
-  )
+rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} "rosidl_typesupport_cpp")
 
-## Generate messages in the 'msg' folder
-add_message_files(
-   FILES
-   Point2D.msg
-   Point2DStamped.msg
-   Point2DArray.msg
-   Point2DArrayStamped.msg
-   Rect.msg
-   RectArray.msg
-   RectArrayStamped.msg
-   Flow.msg
-   FlowStamped.msg
-   FlowArray.msg
-   FlowArrayStamped.msg
-   Size.msg
-   Face.msg
-   FaceArray.msg
-   FaceArrayStamped.msg
-   Line.msg
-   LineArray.msg
-   LineArrayStamped.msg
-   RotatedRect.msg
-   RotatedRectStamped.msg
-   RotatedRectArray.msg
-   RotatedRectArrayStamped.msg
-   Circle.msg
-   CircleArray.msg
-   CircleArrayStamped.msg
-   Moment.msg
-   MomentArray.msg
-   MomentArrayStamped.msg
-   Contour.msg
-   ContourArray.msg
-   ContourArrayStamped.msg
+add_library(${PROJECT_NAME}_component SHARED
+  src/node.cpp
+  src/edge_detection_node.cpp
+  src/color_filter_node.cpp
+  src/camshift_node.cpp
+  src/adding_images_node.cpp
+  src/smoothing_node.cpp
+  src/morphology_node.cpp
+  src/pyramids_node.cpp
+  src/threshold_node.cpp
+  src/equalize_histogram_node.cpp
+  src/discrete_fourier_transform_node.cpp
+  src/simple_example_node.cpp
+  src/simple_compressed_example_node.cpp
+  src/people_detect_node.cpp
+  src/face_detection_node.cpp
+  src/face_recognition_node.cpp
+  src/corner_harris_node.cpp
+  src/goodfeature_track_node.cpp
+  src/find_contours_node.cpp
+  src/convex_hull_node.cpp
+  src/general_contours_node.cpp
+  src/contour_moments_node.cpp
+  src/hough_lines_node.cpp
+  src/hough_circles_node.cpp
+  src/lk_flow_node.cpp
+  src/fback_flow_node.cpp
+  src/simple_flow_node.cpp
+  src/phase_corr_node.cpp
+  src/segment_objects_node.cpp
+  src/watershed_segmentation_node.cpp
 )
-
-add_service_files(
-  FILES
-  FaceRecognitionTrain.srv
+target_include_directories(${PROJECT_NAME}_component PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
 )
-
-## Generate added messages and services with any dependencies listed here
-generate_messages(
-  DEPENDENCIES
+target_link_libraries(${PROJECT_NAME}_component
+  "${cpp_typesupport_target}"
+  ${OpenCV_LIBRARIES}
+)
+ament_target_dependencies(${PROJECT_NAME}_component
+  rclcpp
+  rclcpp_components
+  cv_bridge
+  image_transport
+  message_filters
   sensor_msgs
   std_msgs
+  std_srvs
 )
 
-catkin_package(CATKIN_DEPENDS dynamic_reconfigure message_runtime nodelet roscpp sensor_msgs std_msgs std_srvs
-#                DEPENDS OpenCV
-               INCLUDE_DIRS include
-               LIBRARIES ${PROJECT_NAME}
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::EdgeDetectionNode"
+  EXECUTABLE edge_detection
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::RGBColorFilterNode"
+  EXECUTABLE rgb_color_filter
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::HLSColorFilterNode"
+  EXECUTABLE hls_color_filter
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::HSVColorFilterNode"
+  EXECUTABLE hsv_color_filter
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::LabColorFilterNode"
+  EXECUTABLE lab_color_filter
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::CamShiftNode"
+  EXECUTABLE camshift
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::AddingImagesNode"
+  EXECUTABLE adding_images
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::SmoothingNode"
+  EXECUTABLE smoothing
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::MorphologyNode"
+  EXECUTABLE morphology
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::PyramidsNode"
+  EXECUTABLE pyramids
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::ThresholdNode"
+  EXECUTABLE threshold
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::EqualizeHistogramNode"
+  EXECUTABLE equalize_histogram
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::DiscreteFourierTransformNode"
+  EXECUTABLE discrete_fourier_transform
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::SimpleExampleNode"
+  EXECUTABLE simple_example
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::SimpleCompressedExampleNode"
+  EXECUTABLE simple_compressed_example
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::PeopleDetectNode"
+  EXECUTABLE people_detect
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::FaceDetectionNode"
+  EXECUTABLE face_detection
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::FaceRecognitionNode"
+  EXECUTABLE face_recognition
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::CornerHarrisNode"
+  EXECUTABLE corner_harris
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::GoodfeatureTrackNode"
+  EXECUTABLE goodfeature_track
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::FindContoursNode"
+  EXECUTABLE find_contours
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::ConvexHullNode"
+  EXECUTABLE convex_hull
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::GeneralContoursNode"
+  EXECUTABLE general_contours
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::ContourMomentsNode"
+  EXECUTABLE contour_moments
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::HoughLinesNode"
+  EXECUTABLE hough_lines
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::HoughCirclesNode"
+  EXECUTABLE hough_circles
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::LKFlowNode"
+  EXECUTABLE lk_flow
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::FBackFlowNode"
+  EXECUTABLE fback_flow
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::SimpleFlowNode"
+  EXECUTABLE simple_flow
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::PhaseCorrNode"
+  EXECUTABLE phase_corr
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::SegmentObjectsNode"
+  EXECUTABLE segment_objects
+)
+rclcpp_components_register_node(${PROJECT_NAME}_component
+  PLUGIN "opencv_apps::WatershedSegmentationNode"
+  EXECUTABLE watershed_segmentation
+)
+# ... (one rclcpp_components_register_node call per ported node, added incrementally)
+
+install(
+  DIRECTORY include/
+  DESTINATION include
 )
 
-include_directories(include ${catkin_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
+install(
+  TARGETS ${PROJECT_NAME}_component
+  EXPORT export_${PROJECT_NAME}
+  ARCHIVE DESTINATION lib
+  LIBRARY DESTINATION lib
+  RUNTIME DESTINATION bin
+)
 
-## Macro to add nodelets
-macro(opencv_apps_add_nodelet node_name nodelet_cppfile)
-  set(NODE_NAME ${node_name})
-  set(NODELET_NAME opencv_apps/${node_name})
-  configure_file(src/node/standalone_nodelet_exec.cpp.in ${node_name}.cpp @ONLY)
-  add_executable(${node_name}_exe ${node_name}.cpp)
-  SET_TARGET_PROPERTIES(${node_name}_exe PROPERTIES OUTPUT_NAME ${node_name})
-  target_link_libraries(${node_name}_exe ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
-  list(APPEND _opencv_apps_nodelet_cppfiles ${nodelet_cppfile})
-  list(APPEND _opencv_apps_nodelet_targets ${node_name}_exe)
-endmacro()
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
 
-# https://github.com/Itseez/opencv/blob/2.4/samples/cpp/
+install(
+  PROGRAMS scripts/face_recognition_trainer.py
+  DESTINATION lib/${PROJECT_NAME}
+)
 
-# calib3d
-  # ./tutorial_code/calib3d/camera_calibration/camera_calibration.cpp
-  # ./tutorial_code/calib3d/real_time_pose_estimation/src/main_detection.cpp
-  # ./tutorial_code/calib3d/real_time_pose_estimation/src/main_registration.cpp
-  # ./tutorial_code/calib3d/stereoBM/SBM_Sample.cpp
+ament_export_include_directories(include)
+ament_export_libraries(${PROJECT_NAME}_component)
+ament_export_targets(export_${PROJECT_NAME})
+ament_export_dependencies(rosidl_default_runtime rclcpp rclcpp_components cv_bridge image_transport message_filters sensor_msgs std_msgs std_srvs)
 
-# core
-opencv_apps_add_nodelet(adding_images src/nodelet/adding_images_nodelet.cpp) # ./tutorial_code/core/AddingImages/AddingImages.cpp
-opencv_apps_add_nodelet(discrete_fourier_transform src/nodelet/discrete_fourier_transform_nodelet.cpp)  # ./tutorial_code/core/discrete_fourier_transform/discrete_fourier_transform.cpp
-  # ./tutorial_code/core/file_input_output/file_input_output.cpp
-  # ./tutorial_code/core/how_to_scan_images/how_to_scan_images.cpp
-  # ./tutorial_code/core/interoperability_with_OpenCV_1/interoperability_with_OpenCV_1.cpp
-  # ./tutorial_code/core/ippasync/ippasync_sample.cpp
-  # ./tutorial_code/core/mat_mask_operations/mat_mask_operations.cpp
-  # ./tutorial_code/core/Matrix/Drawing_1.cpp
-  # ./tutorial_code/core/Matrix/Drawing_2.cpp
-  # ./tutorial_code/core/mat_the_basic_image_container/mat_the_basic_image_container.cpp
+if(BUILD_TESTING)
+  find_package(ament_lint_auto REQUIRED)
+  ament_lint_auto_find_test_dependencies()
 
-# features2D
-  # ./tutorial_code/features2D/AKAZE_match.cpp
-  # ./tutorial_code/features2D/AKAZE_tracking/planar_tracking.cpp
-  # ./tutorial_code/gpu/gpu-basics-similarity/gpu-basics-similarity.cpp
-
-# highGUi
-  # ./tutorial_code/HighGUI/AddingImagesTrackbar.cpp
-  # ./tutorial_code/HighGUI/BasicLinearTransformsTrackbar.cpp
-
-# Histograms_Matching
-  # ./tutorial_code/Histograms_Matching/calcBackProject_Demo1.cpp
-  # ./tutorial_code/Histograms_Matching/calcBackProject_Demo2.cpp
-  # ./tutorial_code/Histograms_Matching/calcHist_Demo.cpp
-  #  ./tutorial_code/Histograms_Matching/compareHist_Demo.cpp
-  opencv_apps_add_nodelet(equalize_histogram src/nodelet/equalize_histogram_nodelet.cpp) # ./tutorial_code/Histograms_Matching/EqualizeHist_Demo.cpp
-  # ./tutorial_code/Histograms_Matching/MatchTemplate_Demo.cpp
-
-# imagecodecs
-  # ./tutorial_code/imgcodecs/GDAL_IO/gdal-image.cpp
-
-# ImgProc
-  # ./tutorial_code/ImgProc/BasicLinearTransforms.cpp
-  # ./tutorial_code/ImgProc/Morphology_1.cpp
-  # ./tutorial_code/ImgProc/Morphology_2.cpp
-opencv_apps_add_nodelet(morphology src/nodelet/morphology_nodelet.cpp)  # ./tutorial_code/ImgProc/Morphology_3.cpp
-opencv_apps_add_nodelet(pyramids src/nodelet/pyramids_nodelet.cpp)  # ./tutorial_code/ImgProc/Pyramids.cpp
-opencv_apps_add_nodelet(smoothing src/nodelet/smoothing_nodelet.cpp)  # ./tutorial_code/ImgProc/Smoothing.cpp
-opencv_apps_add_nodelet(threshold src/nodelet/threshold_nodelet.cpp)  # ./tutorial_code/ImgProc/Threshold.cpp
-opencv_apps_add_nodelet(rgb_color_filter src/nodelet/color_filter_nodelet.cpp)  # ./tutorial_code/ImgProc/Threshold_inRange.cpp
-opencv_apps_add_nodelet(hls_color_filter src/nodelet/color_filter_nodelet.cpp)  # ./tutorial_code/ImgProc/Threshold_inRange.cpp
-opencv_apps_add_nodelet(hsv_color_filter src/nodelet/color_filter_nodelet.cpp)  # ./tutorial_code/ImgProc/Threshold_inRange.cpp
-opencv_apps_add_nodelet(lab_color_filter src/nodelet/color_filter_nodelet.cpp)
-
-# ImgTrans
-opencv_apps_add_nodelet(edge_detection src/nodelet/edge_detection_nodelet.cpp) # ./tutorial_code/ImgTrans/CannyDetector_Demo.cpp
-                                                                                                             # ./tutorial_code/ImgTrans/Laplace_Demo.cpp
-                                                                                                             # ./tutorial_code/ImgTrans/Sobel_Demo.cpp
-opencv_apps_add_nodelet(hough_lines src/nodelet/hough_lines_nodelet.cpp) # ./tutorial_code/ImgTrans/HoughLines_Demo.cpp
-opencv_apps_add_nodelet(hough_circles src/nodelet/hough_circles_nodelet.cpp) # ./tutorial_code/ImgTrans/HoughCircle_Demo.cpp
- # ./tutorial_code/ImgTrans/copyMakeBorder_demo.cpp
- # ./tutorial_code/ImgTrans/filter2D_demo.cpp
- # ./tutorial_code/ImgTrans/Geometric_Transforms_Demo.cpp
- # ./tutorial_code/ImgTrans/imageSegmentation.cpp
- # ./tutorial_code/ImgTrans/Remap_Demo.cpp
-
-# introduction
- # ./tutorial_code/introduction/display_image/display_image.cpp
- # ./tutorial_code/introduction/windows_visual_studio_Opencv/introduction_windows_vs.cpp
-
-# ml
- # ./tutorial_code/ml/introduction_to_pca/introduction_to_pca.cpp
- # ./tutorial_code/ml/introduction_to_svm/introduction_to_svm.cpp
- # ./tutorial_code/ml/non_linear_svms/non_linear_svms.cpp
-
-# objectDetection
- # ./tutorial_code/objectDetection/objectDetection2.cpp
- # ./tutorial_code/objectDetection/objectDetection.cpp
-
-# photo
- # ./tutorial_code/photo/decolorization/decolor.cpp
- # ./tutorial_code/photo/hdr_imaging/hdr_imaging.cpp
- # ./tutorial_code/photo/non_photorealistic_rendering/npr_demo.cpp
- # ./tutorial_code/photo/seamless_cloning/cloning_demo.cpp
- # ./tutorial_code/photo/seamless_cloning/cloning_gui.cpp
-
-# ShapeDescriptors
-opencv_apps_add_nodelet(find_contours src/nodelet/find_contours_nodelet.cpp) # ./tutorial_code/ShapeDescriptors/findContours_demo.cpp
-opencv_apps_add_nodelet(convex_hull src/nodelet/convex_hull_nodelet.cpp) # ./tutorial_code/ShapeDescriptors/hull_demo.cpp
-opencv_apps_add_nodelet(general_contours src/nodelet/general_contours_nodelet.cpp) # ./tutorial_code/ShapeDescriptors/generalContours_demo2.cpp
-opencv_apps_add_nodelet(contour_moments src/nodelet/contour_moments_nodelet.cpp) # ./tutorial_code/ShapeDescriptors/moments_demo.cpp
-  # ./tutorial_code/ShapeDescriptors/generalContours_demo1.cpp
-  # ./tutorial_code/ShapeDescriptors/pointPolygonTest_demo.cpp
-
-# TrackingMotion
-opencv_apps_add_nodelet(goodfeature_track src/nodelet/goodfeature_track_nodelet.cpp) # ./tutorial_code/TrackingMotion/goodFeaturesToTrack_Demo.cpp
-  # ./tutorial_code/TrackingMotion/cornerDetector_Demo.cpp
-opencv_apps_add_nodelet(corner_harris src/nodelet/corner_harris_nodelet.cpp)  # ./tutorial_code/TrackingMotion/cornerHarris_Demo.cpp
-  # ./tutorial_code/TrackingMotion/cornerSubPix_Demo.cpp
-
-# videoio
- # ./tutorial_code/video/bg_sub.cpp
- # ./tutorial_code/videoio/video-input-psnr-ssim/video-input-psnr-ssim.cpp
- # ./tutorial_code/videoio/video-write/video-write.cpp
-
-# viz
- # ./tutorial_code/viz/creating_widgets.cpp
- # ./tutorial_code/viz/launching_viz.cpp
- # ./tutorial_code/viz/transformations.cpp
- # ./tutorial_code/viz/widget_pose.cpp
-
-# xfeature
- # ./tutorial_code/xfeatures2D/LATCH_match.cpp
-
-# ./3calibration.cpp
-# ./autofocus.cpp
-# ./bgfg_segm.cpp
-# ./calibration.cpp
-opencv_apps_add_nodelet(camshift src/nodelet/camshift_nodelet.cpp) # ./camshiftdemo.cpp
-# ./cloning_demo.cpp
-# ./cloning_gui.cpp
-# ./connected_components.cpp
-# ./contours2.cpp
-# ./convexhull.cpp
-# ./cout_mat.cpp
-# ./create_mask.cpp
-# ./dbt_face_detection.cpp
-# ./delaunay2.cpp
-# ./demhist.cpp
-# ./detect_blob.cpp
-# ./detect_mser.cpp
-# ./dft.cpp
-# ./distrans.cpp
-# ./drawing.cpp
-# ./edge.cpp
-# ./em.cpp
-# ./example_cmake/example.cpp
-opencv_apps_add_nodelet(face_detection src/nodelet/face_detection_nodelet.cpp) # ./facedetect.cpp
-opencv_apps_add_nodelet(face_recognition src/nodelet/face_recognition_nodelet.cpp)
-# ./facial_features.cpp
-opencv_apps_add_nodelet(fback_flow src/nodelet/fback_flow_nodelet.cpp) # ./fback.cpp
-# ./ffilldemo.cpp
-# ./filestorage_base64.cpp
-# ./filestorage.cpp
-# ./fitellipse.cpp
-# ./grabcut.cpp
-# ./houghcircles.cpp
-# ./houghlines.cpp
-# ./image_alignment.cpp
-# ./image.cpp
-# ./imagelist_creator.cpp
-# ./image_sequence.cpp
-# ./inpaint.cpp
-# ./intelperc_capture.cpp
-# ./kalman.cpp
-# ./kmeans.cpp
-# ./laplace.cpp
-# ./letter_recog.cpp
-opencv_apps_add_nodelet(lk_flow src/nodelet/lk_flow_nodelet.cpp) # ./lkdemo.cpp
-# ./logistic_regression.cpp
-# ./lsd_lines.cpp
-# ./mask_tmpl.cpp
-# ./matchmethod_orb_akaze_brisk.cpp
-# ./minarea.cpp
-# ./morphology2.cpp
-# ./neural_network.cpp
-# ./npr_demo.cpp
-# ./opencv_version.cpp
-# ./openni_capture.cpp
-# ./pca.cpp
-opencv_apps_add_nodelet(people_detect src/nodelet/people_detect_nodelet.cpp) # ./peopledetect.cpp
-opencv_apps_add_nodelet(phase_corr src/nodelet/phase_corr_nodelet.cpp) # ./phase_corr.cpp
-# ./points_classifier.cpp
-# ./polar_transforms.cpp
-opencv_apps_add_nodelet(segment_objects src/nodelet/segment_objects_nodelet.cpp) # ./segment_objects.cpp
-# ./select3dobj.cpp
-# ./shape_example.cpp
-# ./smiledetect.cpp
-# ./squares.cpp
-# ./starter_imagelist.cpp
-# ./starter_video.cpp
-# ./stereo_calib.cpp
-# ./stereo_match.cpp
-# ./stitching.cpp
-# ./stitching_detailed.cpp
-# ./train_HOG.cpp
-# ./train_svmsgd.cpp
-# ./tree_engine.cpp
-# ./tvl1_optical_flow.cpp
-# ./videostab.cpp
-opencv_apps_add_nodelet(watershed_segmentation src/nodelet/watershed_segmentation_nodelet.cpp) # ./watershed.cpp
-
-# ros examples
-opencv_apps_add_nodelet(simple_example src/nodelet/simple_example_nodelet.cpp)
-opencv_apps_add_nodelet(simple_compressed_example src/nodelet/simple_compressed_example_nodelet.cpp)
-
-
-# TApi
-# ./tapi/bgfg_segm.cpp
-# ./tapi/camshift.cpp
-# opencv_apps_add_nodelet(equalize_histogram src/nodelet/equalize_histogram_nodelet.cpp) ./tapi/clahe.cpp
-# ./tapi/dense_optical_flow.cpp
-# ./tapi/hog.cpp
-# ./tapi/opencl_custom_kernel.cpp
-# ./tapi/pyrlk_optical_flow.cpp
-# ./tapi/squares.cpp
-# ./tapi/ufacedetect.cpp
-
-# https://github.com/Itseez/opencv/blob/2.4/samples/cpp/simpleflow_demo.cpp
-# simple flow requires opencv-contrib https://github.com/ros-perception/vision_opencv/issues/108
-if(OPENCV_HAVE_OPTFLOW)
-  opencv_apps_add_nodelet(simple_flow src/nodelet/simple_flow_nodelet.cpp)
+  find_package(launch_testing_ament_cmake REQUIRED)
+  # A handful of representative launch_testing smoke tests, not a full port of
+  # the ROS 1 rostest suite under test/*.test (see plan notes: that suite
+  # depends on ROS 1 bags and hztest, neither of which exist in ROS 2).
+  add_launch_test(test/test_launch_edge_detection.py)
+  add_launch_test(test/test_launch_find_contours.py)
+  add_launch_test(test/test_launch_camshift.py)
 endif()
-# https://github.com/opencv/opencv/blob/2.4/samples/cpp/bgfg_gmg.cpp
-# https://github.com/opencv/opencv/blob/2.4/samples/cpp/hybridtrackingsample.cpp
-# https://github.com/opencv/opencv/blob/2.4/samples/cpp/linemod.cpp
-# https://github.com/opencv/opencv/blob/2.4/samples/cpp/retinaDemo.cpp
-# https://github.com/opencv/opencv/blob/2.4/samples/cpp/video_dmtx.cpp
-# https://github.com/opencv/opencv/blob/2.4/samples/cpp/video_homography.cpp
-# https://github.com/opencv/opencv/blob/2.4/samples/cpp/videocapture_pvapi.cpp
 
-add_library(${PROJECT_NAME} SHARED
-  src/nodelet/nodelet.cpp
-  ${_opencv_apps_nodelet_cppfiles}
-)
-
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES} ${OpenCV_LIBRARIES})
-add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_gencfg ${PROJECT_NAME}_generate_messages_cpp)
-install(TARGETS ${PROJECT_NAME}
-        DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-)
-
-install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
-install(TARGETS ${_opencv_apps_nodelet_targets}
-        DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
-install(FILES nodelet_plugins.xml
-        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-)
-install(DIRECTORY launch test scripts
-        DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-        USE_SOURCE_PERMISSIONS)
-
-## test
-if(CATKIN_ENABLE_TESTING)
-  find_package(rostest REQUIRED)
-  find_package(roslaunch REQUIRED)
-  if(roslaunch_VERSION VERSION_LESS "1.11.1")
-    message(WARNING "roslaunch_add_file check fails with unsupported doc attributes ${roslaunch_VERSION}")
-  else()
-    file(GLOB LAUNCH_FILES launch/*.launch)
-    foreach(LAUNCH_FILE ${LAUNCH_FILES})
-      roslaunch_add_file_check(${LAUNCH_FILE})
-    endforeach()
-  endif()
-  add_subdirectory(test)
-endif()
+ament_package()

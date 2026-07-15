@@ -2,6 +2,38 @@
 Changelog for package opencv_apps
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+3.0.0 (2026-07-15)
+------------------
+* Port the package to ROS 2 Humble. Highlights:
+
+  * Convert the catkin/``nodelet::Nodelet`` build to ``ament_cmake``, with
+    every node re-implemented as an ``rclcpp_components`` composable node
+    (loadable into a container or run standalone via ``ros2 run``).
+  * Replace ``dynamic_reconfigure`` with native ROS 2 declared parameters
+    (``ros2 param set/get/describe``), one per old cfg field, with the same
+    names, defaults, and ranges.
+  * Convert all ``msg``/``srv`` definitions to ``rosidl`` and all ``.launch``
+    XML files to Python ``launch_ros`` launch files.
+  * Port ``scripts/face_recognition_trainer.py`` to ``rclpy``.
+  * Add a handful of ``launch_testing`` smoke tests and a new Humble
+    GitHub Actions workflow; remove the ROS 1 ``rostest`` suite
+    (``test/*.test``), which depended on ROS 1 bags and ``hztest``, neither
+    of which exist in ROS 2.
+  * Remove the ROS 1-only build/plugin machinery that no longer applies:
+    ``nodelet_plugins.xml``, ``src/node/standalone_nodelet_exec.cpp.in``,
+    ``include/opencv_apps/nodelet.h``, and ``cfg/*.cfg``.
+  * Fix a few issues found during the port: a parameter-callback ordering
+    bug that caused a CPU busy-loop, output topics colliding with input
+    topics under a single remap (outputs now use ``~/name``), a
+    multi-instance bug in ``camshift``/``edge_detection``'s mouse/trackbar
+    callbacks, and two silently-broken ROS 1 launch arguments
+    (``hough_lines``'s ``maxLineGrap`` and ``lk_flow``'s ``blcok_size``).
+  * ``camshift``'s learned tracking histogram no longer persists across
+    node restarts (previously written back to the ROS 1 parameter server);
+    pass a known histogram via the ``histogram`` parameter instead.
+  * See ``README.md`` for full usage and a complete list of differences
+    from the ROS 1 version.
+
 2.0.3 (2025-05-22)
 ------------------
 * [lk_flow] Keep matching information for sparse optical flow (`#149 <https://github.com/ros-perception/opencv_apps/issues/149>`_)
