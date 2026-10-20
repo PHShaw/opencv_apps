@@ -44,7 +44,7 @@
 #include <string>
 #include <vector>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -72,7 +72,6 @@ class CamShiftNode : public opencv_apps::Node
   rclcpp::Time prev_stamp_;
 
   std::string window_name_, histogram_name_;
-  bool need_config_update_;
   bool on_mouse_update_;
   int on_mouse_event_, on_mouse_x_, on_mouse_y_;
 
@@ -101,11 +100,6 @@ class CamShiftNode : public opencv_apps::Node
     self->on_mouse_event_ = event;
     self->on_mouse_x_ = x;
     self->on_mouse_y_ = y;
-  }
-
-  static void trackbarCallback(int /*unused*/, void * userdata)
-  {
-    static_cast<CamShiftNode *>(userdata)->need_config_update_ = true;
   }
 
   void applyParams()
@@ -151,16 +145,17 @@ class CamShiftNode : public opencv_apps::Node
         cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
 
         cv::setMouseCallback(window_name_, &CamShiftNode::onMouse, this);
-        cv::createTrackbar("Vmin", window_name_, &vmin_, 256, &CamShiftNode::trackbarCallback, this);
-        cv::createTrackbar("Vmax", window_name_, &vmax_, 256, &CamShiftNode::trackbarCallback, this);
-        cv::createTrackbar("Smin", window_name_, &smin_, 256, &CamShiftNode::trackbarCallback, this);
-
-        if (need_config_update_)
+        if (syncTrackbar("Vmin", window_name_, vmin_, 256, 1))
         {
           this->set_parameter(rclcpp::Parameter("vmin", vmin_));
+        }
+        if (syncTrackbar("Vmax", window_name_, vmax_, 256, 1))
+        {
           this->set_parameter(rclcpp::Parameter("vmax", vmax_));
+        }
+        if (syncTrackbar("Smin", window_name_, smin_, 256, 1))
+        {
           this->set_parameter(rclcpp::Parameter("smin", smin_));
-          need_config_update_ = false;
         }
       }
 
@@ -360,7 +355,6 @@ public:
 
     window_name_ = "CamShift Demo";
     histogram_name_ = "Histogram";
-    need_config_update_ = false;
     on_mouse_update_ = false;
     on_mouse_event_ = 0;
     on_mouse_x_ = 0;

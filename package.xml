@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>opencv_apps</name>
-  <version>3.0.0</version>
+  <version>4.0.0</version>
   <description>
     <p>opencv_apps provides various nodes that run internally OpenCV's functionalities and publish the result as ROS topics. With opencv_apps, you can skip writing OpenCV application codes for a lot of its functionalities by simply running a launch file that corresponds to OpenCV's functionality you want.</p>
     <ul>
@@ -10,7 +10,7 @@
       <li>Some of the features covered by opencv_apps are explained in <a href = "http://wiki.ros.org/opencv_apps">the wiki</a>.</li>
     </ul>
     <p>The most of code is originally taken from https://github.com/Itseez/opencv/tree/master/samples/cpp</p>
-    <p>This is a ROS 2 (Humble) port by Claude (Sonnet 5) of the original ROS 1 nodelet-based package.</p>
+    <p>This is a ROS 2 (Humble) port by Claude (Sonnet 5) of the original ROS 1 nodelet-based package.  Further updates and fixes made for ROS 2 (Jazzy)</p>
   </description>
 
   <maintainer email="kei.okada@gmail.com">Kei Okada</maintainer>

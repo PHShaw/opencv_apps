@@ -41,7 +41,7 @@
 #include <functional>
 #include <string>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -123,6 +123,11 @@ class PeopleDetectNode : public opencv_apps::Node
       if (debug_view_)
       {
         cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
+        syncParamTrackbar(window_name_, "hit_threshold", hit_threshold_, 0.1);
+        syncParamTrackbar(window_name_, "win_stride", win_stride_);
+        syncParamTrackbar(window_name_, "padding", padding_);
+        syncParamTrackbar(window_name_, "scale0", scale0_, 0.01);
+        syncParamTrackbar(window_name_, "group_threshold", group_threshold_);
       }
 
       std::vector<cv::Rect> found, found_filtered;

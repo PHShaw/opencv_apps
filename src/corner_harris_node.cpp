@@ -43,7 +43,7 @@
 #include <functional>
 #include <string>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -66,7 +66,6 @@ class CornerHarrisNode : public opencv_apps::Node
   bool debug_view_;
 
   std::string window_name_;
-  bool need_config_update_;
 
   bool use_camera_info_;
   int threshold_;
@@ -97,11 +96,6 @@ class CornerHarrisNode : public opencv_apps::Node
   void imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr & msg)
   {
     doWork(msg, msg->header.frame_id);
-  }
-
-  static void trackbarCallback(int /*unused*/, void * userdata)
-  {
-    static_cast<CornerHarrisNode *>(userdata)->need_config_update_ = true;
   }
 
   void doWork(const sensor_msgs::msg::Image::ConstSharedPtr & image_msg, const std::string & /*input_frame_from_msg*/)
@@ -157,13 +151,10 @@ class CornerHarrisNode : public opencv_apps::Node
       {
         cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
         const int max_threshold = 255;
-        if (need_config_update_)
+        if (syncTrackbar("Threshold:", window_name_, threshold_, max_threshold))
         {
           this->set_parameter(rclcpp::Parameter("threshold", threshold_));
-          need_config_update_ = false;
         }
-        cv::createTrackbar("Threshold:", window_name_, &threshold_, max_threshold, &CornerHarrisNode::trackbarCallback,
-                            this);
       }
 
       if (debug_view_)
@@ -215,7 +206,6 @@ public:
     {
       always_subscribe_ = true;
     }
-    need_config_update_ = false;
 
     window_name_ = "CornerHarris Demo";
 

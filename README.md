@@ -1,11 +1,11 @@
-# opencv_apps (ROS 2 Humble)
+# opencv_apps (ROS 2 Jazzy)
 
 `opencv_apps` wraps common OpenCV algorithms as ROS 2 nodes, each publishing its
 result as a ROS topic. Rather than writing OpenCV application code, run the
 node (or its launch file) for the functionality you need and remap its `image`
 input to your camera topic.
 
-This is a ROS 2 Humble port of the original ROS 1 nodelet-based package
+This is a ROS 2 Jazzy port of the original ROS 1 nodelet-based package
 (https://github.com/ros-perception/opencv_apps). Every node was converted from
 a `nodelet::Nodelet` + `dynamic_reconfigure` design to an `rclcpp_components`
 composable node with native ROS 2 declared parameters. See
@@ -87,10 +87,9 @@ ros2 topic echo /contour_moments/moments
 | Combining images | `adding_images` |
 | Examples | `simple_example`, `simple_compressed_example` |
 
-Run `ros2 param list <node>` after starting any of them to see its full set of
-tunable parameters (each mirrors that node's old `cfg/*.cfg` 1:1), or read the
-corresponding `launch/<node>.launch.py` file for the same information with
-descriptions.
+See [doc/nodes.md](doc/nodes.md) for what each node does, its input and output
+topics, and every parameter with its default and range. You can also run
+`ros2 param describe <node> <parameter>` on a running node.
 
 ### face_recognition
 

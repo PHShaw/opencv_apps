@@ -36,8 +36,9 @@
 #include <algorithm>
 #include <functional>
 #include <string>
+#include <vector>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -72,6 +73,10 @@ protected:
   cv::Scalar lower_color_range_;
   cv::Scalar upper_color_range_;
 
+  // Names of the derived class's limit parameters, shown as debug-view sliders
+  std::vector<std::string> limit_params_;
+
+  virtual void applyLimits() = 0;
   virtual void updateCondition() = 0;
   virtual void filter(const cv::Mat & input_image, cv::Mat & output_image) = 0;
 
@@ -94,12 +99,28 @@ protected:
     {
       cv::Mat frame = cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::BGR8)->image;
 
+      if (debug_view_)
+      {
+        cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
+        // Slide the parameters' own values: updateCondition() may have swapped the
+        // cached min/max limits
+        bool changed = false;
+        for (const auto & name : limit_params_)
+        {
+          int value = static_cast<int>(this->get_parameter(name).as_int());
+          changed |= syncParamTrackbar(window_name_, name, value);
+        }
+        if (changed)
+        {
+          applyLimits();
+        }
+      }
+
       cv::Mat out_frame;
       filter(frame, out_frame);
 
       if (debug_view_)
       {
-        cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
         cv::imshow(window_name_, out_frame);
         cv::waitKey(1);
       }
@@ -168,7 +189,7 @@ class RGBColorFilterNode : public ColorFilterNode
   int r_min_, r_max_, g_min_, g_max_, b_min_, b_max_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_params_handle_;
 
-  void applyLimits()
+  void applyLimits() override
   {
     r_max_ = this->get_parameter("r_limit_max").as_int();
     r_min_ = this->get_parameter("r_limit_min").as_int();
@@ -213,6 +234,7 @@ public:
     this->declare_parameter("g_limit_min", 0, describeIntParam("The minimum allowed field value Green", 0, 255));
     this->declare_parameter("b_limit_max", 255, describeIntParam("The maximum allowed field value Blue", 0, 255));
     this->declare_parameter("b_limit_min", 0, describeIntParam("The minimum allowed field value Blue", 0, 255));
+    limit_params_ = { "r_limit_min", "r_limit_max", "g_limit_min", "g_limit_max", "b_limit_min", "b_limit_max" };
     applyLimits();
 
     finishInit();
@@ -226,7 +248,7 @@ class HLSColorFilterNode : public ColorFilterNode
   int h_min_, h_max_, s_min_, s_max_, l_min_, l_max_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_params_handle_;
 
-  void applyLimits()
+  void applyLimits() override
   {
     h_max_ = this->get_parameter("h_limit_max").as_int();
     h_min_ = this->get_parameter("h_limit_min").as_int();
@@ -289,6 +311,7 @@ public:
         "l_limit_max", 256, describeIntParam("The maximum allowed field value Lightness", 0, 256));
     this->declare_parameter(
         "l_limit_min", 0, describeIntParam("The minimum allowed field value Lightness", 0, 256));
+    limit_params_ = { "h_limit_min", "h_limit_max", "s_limit_min", "s_limit_max", "l_limit_min", "l_limit_max" };
     applyLimits();
 
     finishInit();
@@ -302,7 +325,7 @@ class HSVColorFilterNode : public ColorFilterNode
   int h_min_, h_max_, s_min_, s_max_, v_min_, v_max_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_params_handle_;
 
-  void applyLimits()
+  void applyLimits() override
   {
     h_max_ = this->get_parameter("h_limit_max").as_int();
     h_min_ = this->get_parameter("h_limit_min").as_int();
@@ -363,6 +386,7 @@ public:
         "s_limit_min", 0, describeIntParam("The minimum allowed field value Saturation", 0, 256));
     this->declare_parameter("v_limit_max", 256, describeIntParam("The maximum allowed field value Value", 0, 256));
     this->declare_parameter("v_limit_min", 0, describeIntParam("The minimum allowed field value Value", 0, 256));
+    limit_params_ = { "h_limit_min", "h_limit_max", "s_limit_min", "s_limit_max", "v_limit_min", "v_limit_max" };
     applyLimits();
 
     finishInit();
@@ -376,7 +400,7 @@ class LabColorFilterNode : public ColorFilterNode
   int l_min_, l_max_, a_min_, a_max_, b_min_, b_max_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_params_handle_;
 
-  void applyLimits()
+  void applyLimits() override
   {
     l_max_ = this->get_parameter("l_limit_max").as_int();
     l_min_ = this->get_parameter("l_limit_min").as_int();
@@ -423,6 +447,7 @@ public:
     this->declare_parameter("a_limit_min", 0, describeIntParam("The minimum allowed field value a*", 0, 255));
     this->declare_parameter("b_limit_max", 255, describeIntParam("The maximum allowed field value b*", 0, 255));
     this->declare_parameter("b_limit_min", 0, describeIntParam("The minimum allowed field value b*", 0, 255));
+    limit_params_ = { "l_limit_min", "l_limit_max", "a_limit_min", "a_limit_max", "b_limit_min", "b_limit_max" };
     applyLimits();
 
     finishInit();

@@ -1,6 +1,10 @@
 #include "opencv_apps/node.hpp"
 
 #include <chrono>
+#include <cmath>
+#include <utility>
+
+#include <opencv2/highgui.hpp>
 
 using namespace std::chrono_literals;
 
@@ -112,6 +116,103 @@ void Node::deferApplyParams(const std::function<void()> & apply_fn)
     defer_apply_params_timer_->cancel();
     apply_fn();
   });
+}
+
+bool Node::syncTrackbar(const std::string & name, const std::string & window, int & value, int max_value,
+                        int min_value)
+{
+  const auto key = std::make_pair(window, name);
+  int pos = cv::getTrackbarPos(name, window);
+  if (pos < 0)
+  {
+    // Not created yet (or the window was re-created): start the slider at the current value
+    cv::createTrackbar(name, window, nullptr, max_value);
+    if (min_value != 0)
+    {
+      cv::setTrackbarMin(name, window, min_value);
+    }
+    cv::setTrackbarPos(name, window, value);
+    trackbar_positions_[key] = value;
+    return false;
+  }
+
+  auto last = trackbar_positions_.find(key);
+  if (last != trackbar_positions_.end() && pos != last->second)
+  {
+    // Moved by the user
+    last->second = pos;
+    value = pos;
+    return true;
+  }
+
+  if (pos != value)
+  {
+    // Changed elsewhere, e.g. by a parameter update
+    cv::setTrackbarPos(name, window, value);
+  }
+  trackbar_positions_[key] = value;
+  return false;
+}
+
+bool Node::syncParamTrackbar(const std::string & window, const std::string & param, int & value)
+{
+  int min_value = 0;
+  int max_value = 255;
+  const auto descriptor = this->describe_parameter(param);
+  if (!descriptor.integer_range.empty())
+  {
+    min_value = static_cast<int>(descriptor.integer_range[0].from_value);
+    max_value = static_cast<int>(descriptor.integer_range[0].to_value);
+  }
+  if (!syncTrackbar(param, window, value, max_value, min_value))
+  {
+    return false;
+  }
+  this->set_parameter(rclcpp::Parameter(param, value));
+  return true;
+}
+
+bool Node::syncParamTrackbar(const std::string & window, const std::string & param, double & value, double step)
+{
+  double min_value = 0.0;
+  double max_value = 255.0;
+  const auto descriptor = this->describe_parameter(param);
+  if (!descriptor.floating_point_range.empty())
+  {
+    min_value = descriptor.floating_point_range[0].from_value;
+    max_value = descriptor.floating_point_range[0].to_value;
+  }
+
+  // The slider works in whole steps, so show the scale factor in its label
+  std::string label = param;
+  const long scale = std::lround(1.0 / step);
+  if (scale > 1)
+  {
+    label += " x" + std::to_string(scale);
+  }
+
+  int pos = static_cast<int>(std::lround(value / step));
+  const int min_pos = static_cast<int>(std::ceil(min_value / step - 1e-9));
+  const int max_pos = static_cast<int>(std::floor(max_value / step + 1e-9));
+  if (!syncTrackbar(label, window, pos, max_pos, min_pos))
+  {
+    return false;
+  }
+  value = pos * step;
+  this->set_parameter(rclcpp::Parameter(param, value));
+  return true;
+}
+
+bool Node::syncParamTrackbar(const std::string & window, const std::string & param, bool & value)
+{
+  int pos = value ? 1 : 0;
+  if (!syncTrackbar(param, window, pos, 1))
+  {
+    return false;
+  }
+  value = (pos != 0);
+  this->set_parameter(rclcpp::Parameter(param, value));
+  return true;
 }
 
 image_transport::Publisher Node::advertiseImage(const std::string & topic, int queue_size)

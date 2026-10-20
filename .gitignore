@@ -2,6 +2,8 @@ build*/
 ._*
 *.pyc
 .*
+# ...but keep the GitHub Actions workflows
+!.github/
 *~
 
 # ignore png image generated from test

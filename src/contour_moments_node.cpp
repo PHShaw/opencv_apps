@@ -46,7 +46,7 @@
 #include <string>
 #include <vector>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -86,7 +86,6 @@ class ContourMomentsNode : public opencv_apps::Node
   int low_threshold_;
 
   std::string window_name_;
-  bool need_config_update_;
 
   bool use_camera_info_;
 
@@ -118,40 +117,31 @@ class ContourMomentsNode : public opencv_apps::Node
     doWork(msg, msg->header.frame_id);
   }
 
-  static void trackbarCallback(int /*unused*/, void * userdata)
-  {
-    static_cast<ContourMomentsNode *>(userdata)->need_config_update_ = true;
-  }
-
   void doWork(const sensor_msgs::msg::Image::ConstSharedPtr & msg, const std::string & /*input_frame_from_msg*/)
   {
     // Work on the image.
     try
     {
       // Convert the image into something opencv can handle.
-      cv::Mat frame = cv_bridge::toCvShare(msg, msg->encoding)->image;
+      // Let cv_bridge convert any input encoding (bgr8, rgb8, yuv422, ...) to gray
+      cv::Mat src_gray = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::MONO8)->image;
 
       // Messages
       opencv_apps::msg::MomentArrayStamped moments_msg;
       moments_msg.header = msg->header;
 
       // Do the work
-      cv::Mat src_gray;
-      /// Convert image to gray and blur it
-      if (frame.channels() > 1)
-      {
-        cv::cvtColor(frame, src_gray, cv::COLOR_BGR2GRAY);
-      }
-      else
-      {
-        src_gray = frame;
-      }
+      /// Blur the gray image
       cv::blur(src_gray, src_gray, cv::Size(3, 3));
 
-      /// Create window
+      /// Create window and trackbar
       if (debug_view_)
       {
         cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
+        if (syncTrackbar("Canny thresh:", window_name_, low_threshold_, 255, 1))
+        {
+          this->set_parameter(rclcpp::Parameter("canny_low_threshold", low_threshold_));
+        }
       }
 
       cv::Mat canny_output;
@@ -166,15 +156,16 @@ class ContourMomentsNode : public opencv_apps::Node
 
       /// Draw contours
       cv::Mat drawing;
-      /// Draw moment on drawing only when img_pub_ have subscribers
+      /// Draw moment on drawing only when img_pub_ have subscribers or the debug view is shown
       bool publish_drawing = (img_pub_.getNumSubscribers() > 0);
-      if (publish_drawing)
+      bool need_drawing = publish_drawing || debug_view_;
+      if (need_drawing)
       {
         drawing = cv::Mat::zeros(canny_output.size(), CV_8UC3);
       }
 
       /// Calculate the area with the moments 00 and compare with the result of the OpenCV function
-      RCLCPP_INFO(this->get_logger(), "\t Info: Area and Contour Length");
+      RCLCPP_DEBUG(this->get_logger(), "\t Info: Area and Contour Length");
 
       // https://stackoverflow.com/questions/13495207/opencv-c-sorting-contours-by-their-contourarea
       std::sort(contours.begin(), contours.end(), compareContourAreas);
@@ -184,27 +175,30 @@ class ContourMomentsNode : public opencv_apps::Node
       for (size_t i = 0; i < contours.size(); i++)
       {
         /// Get the moments
-        for (size_t i = 0; i < contours.size(); i++)
-        {
-          mu[i] = moments(contours[i], false);
-        }
+        mu[i] = moments(contours[i], false);
 
-        ///  Get the mass centers:
-        for (size_t i = 0; i < contours.size(); i++)
+        ///  Get the mass center, falling back to the mean of the contour points for zero-area contours
+        if (mu[i].m00 != 0.0)
         {
           mc[i] = cv::Point2f(static_cast<float>(mu[i].m10 / mu[i].m00), static_cast<float>(mu[i].m01 / mu[i].m00));
         }
+        else
+        {
+          cv::Scalar mean = cv::mean(contours[i]);
+          mc[i] = cv::Point2f(static_cast<float>(mean[0]), static_cast<float>(mean[1]));
+        }
 
-        if (publish_drawing)
+        if (need_drawing)
         {
           cv::Scalar color = cv::Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
           cv::drawContours(drawing, contours, (int)i, color, 2, 8, hierarchy, 0, cv::Point());
           cv::circle(drawing, mc[i], 4, color, -1, 8, 0);
         }
-        RCLCPP_INFO(this->get_logger(),
-                    " * Contour[%d] - Area (M_00) = %.2f - Area OpenCV: %.2f - Length: %.2f - Center (%.2f, %.2f)",
-                    (int)i, mu[i].m00, cv::contourArea(contours[i]), cv::arcLength(contours[i], true), mc[i].x,
-                    mc[i].y);
+        double area = cv::contourArea(contours[i]);
+        double length = cv::arcLength(contours[i], true);
+        RCLCPP_DEBUG(this->get_logger(),
+                     " * Contour[%d] - Area (M_00) = %.2f - Area OpenCV: %.2f - Length: %.2f - Center (%.2f, %.2f)",
+                     (int)i, mu[i].m00, area, length, mc[i].x, mc[i].y);
 
         opencv_apps::msg::Moment moment_msg;
         moment_msg.m00 = mu[i].m00;
@@ -235,8 +229,8 @@ class ContourMomentsNode : public opencv_apps::Node
         center_msg.x = mc[i].x;
         center_msg.y = mc[i].y;
         moment_msg.center = center_msg;
-        moment_msg.area = cv::contourArea(contours[i]);
-        moment_msg.length = cv::arcLength(contours[i], true);
+        moment_msg.area = area;
+        moment_msg.length = length;
         moments_msg.moments.push_back(moment_msg);
       }
 
@@ -295,7 +289,6 @@ public:
       always_subscribe_ = true;
     }
     prev_stamp_ = rclcpp::Time(0, 0);
-    need_config_update_ = false;
 
     window_name_ = "Contours";
 

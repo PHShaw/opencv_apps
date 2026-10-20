@@ -45,7 +45,7 @@
 #include <string>
 #include <vector>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -82,7 +82,6 @@ class HoughLinesNode : public opencv_apps::Node
   rclcpp::Time prev_stamp_;
 
   std::string window_name_;
-  bool need_config_update_;
 
   bool use_camera_info_;
   int min_threshold_;
@@ -125,11 +124,6 @@ class HoughLinesNode : public opencv_apps::Node
   void imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr & msg)
   {
     doWork(msg, msg->header.frame_id);
-  }
-
-  static void trackbarCallback(int /*unused*/, void * userdata)
-  {
-    static_cast<HoughLinesNode *>(userdata)->need_config_update_ = true;
   }
 
   void doWork(const sensor_msgs::msg::Image::ConstSharedPtr & msg, const std::string & /*input_frame_from_msg*/)
@@ -187,13 +181,15 @@ class HoughLinesNode : public opencv_apps::Node
         snprintf(thresh_label, sizeof(thresh_label), "Thres: %d + input", min_threshold_);
 
         cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
-        cv::createTrackbar(thresh_label, window_name_, &threshold_, max_threshold_, &HoughLinesNode::trackbarCallback,
-                            this);
-        if (need_config_update_)
+        if (syncTrackbar(thresh_label, window_name_, threshold_, max_threshold_, min_threshold_))
         {
           this->set_parameter(rclcpp::Parameter("threshold", threshold_));
-          need_config_update_ = false;
         }
+        syncParamTrackbar(window_name_, "hough_type", hough_type_);
+        syncParamTrackbar(window_name_, "rho", rho_, 1.0);
+        syncParamTrackbar(window_name_, "theta", theta_, 1.0);
+        syncParamTrackbar(window_name_, "minLineLength", minLineLength_, 1.0);
+        syncParamTrackbar(window_name_, "maxLineGap", maxLineGap_, 1.0);
       }
 
       switch (hough_type_)
@@ -305,7 +301,6 @@ public:
       always_subscribe_ = true;
     }
     prev_stamp_ = rclcpp::Time(0, 0);
-    need_config_update_ = false;
 
     window_name_ = "Hough Lines Demo";
     min_threshold_ = 50;

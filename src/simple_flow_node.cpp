@@ -48,7 +48,7 @@
 #include <functional>
 #include <string>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -77,7 +77,6 @@ class SimpleFlowNode : public opencv_apps::Node
   rclcpp::Time prev_stamp_;
 
   std::string window_name_;
-  bool need_config_update_;
 
   bool use_camera_info_;
   int scale_;
@@ -111,11 +110,6 @@ class SimpleFlowNode : public opencv_apps::Node
   void imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr & msg)
   {
     doWork(msg, msg->header.frame_id);
-  }
-
-  static void trackbarCallback(int /*unused*/, void * userdata)
-  {
-    static_cast<SimpleFlowNode *>(userdata)->need_config_update_ = true;
   }
 
   void doWork(const sensor_msgs::msg::Image::ConstSharedPtr & msg, const std::string & /*input_frame_from_msg*/)
@@ -161,11 +155,9 @@ class SimpleFlowNode : public opencv_apps::Node
       if (debug_view_)
       {
         cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
-        cv::createTrackbar("Scale", window_name_, &scale_, 24, &SimpleFlowNode::trackbarCallback, this);
-        if (need_config_update_)
+        if (syncTrackbar("Scale", window_name_, scale_, 24, 1))
         {
           this->set_parameter(rclcpp::Parameter("scale", scale_));
-          need_config_update_ = false;
         }
       }
 
@@ -256,7 +248,6 @@ public:
       always_subscribe_ = true;
     }
     prev_stamp_ = rclcpp::Time(0, 0);
-    need_config_update_ = false;
 
     window_name_ = "simpleflow_demo";
 

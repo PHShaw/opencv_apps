@@ -44,7 +44,7 @@
 #include <string>
 #include <vector>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -70,7 +70,6 @@ class GoodfeatureTrackNode : public opencv_apps::Node
   rclcpp::Time prev_stamp_;
 
   std::string window_name_;
-  bool need_config_update_;
 
   bool use_camera_info_;
   int max_corners_;
@@ -103,11 +102,6 @@ class GoodfeatureTrackNode : public opencv_apps::Node
     doWork(msg, msg->header.frame_id);
   }
 
-  static void trackbarCallback(int /*unused*/, void * userdata)
-  {
-    static_cast<GoodfeatureTrackNode *>(userdata)->need_config_update_ = true;
-  }
-
   void doWork(const sensor_msgs::msg::Image::ConstSharedPtr & msg, const std::string & /*input_frame_from_msg*/)
   {
     // Work on the image.
@@ -138,12 +132,9 @@ class GoodfeatureTrackNode : public opencv_apps::Node
       {
         /// Create Trackbars for Thresholds
         cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
-        cv::createTrackbar("Max corners", window_name_, &max_corners_, max_trackbar,
-                            &GoodfeatureTrackNode::trackbarCallback, this);
-        if (need_config_update_)
+        if (syncTrackbar("Max corners", window_name_, max_corners_, max_trackbar, 1))
         {
           this->set_parameter(rclcpp::Parameter("max_corners", max_corners_));
-          need_config_update_ = false;
         }
       }
 
@@ -238,7 +229,6 @@ public:
       always_subscribe_ = true;
     }
     prev_stamp_ = rclcpp::Time(0, 0);
-    need_config_update_ = false;
 
     window_name_ = "Image";
 

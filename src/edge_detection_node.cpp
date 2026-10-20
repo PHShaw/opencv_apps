@@ -43,7 +43,7 @@
 #include <functional>
 #include <string>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -88,7 +88,6 @@ class EdgeDetectionNode : public opencv_apps::Node
   double postBlurSigma_;
 
   std::string window_name_;
-  bool need_config_update_;
 
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_params_handle_;
 
@@ -125,11 +124,6 @@ class EdgeDetectionNode : public opencv_apps::Node
   void imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr & msg)
   {
     doWork(msg, msg->header.frame_id);
-  }
-
-  static void trackbarCallback(int /*unused*/, void * userdata)
-  {
-    static_cast<EdgeDetectionNode *>(userdata)->need_config_update_ = true;
   }
 
   void doWork(const sensor_msgs::msg::Image::ConstSharedPtr & msg, const std::string & /*input_frame_from_msg*/)
@@ -214,18 +208,22 @@ class EdgeDetectionNode : public opencv_apps::Node
 
           if (debug_view_)
           {
-            if (need_config_update_)
-            {
-              this->set_parameter(rclcpp::Parameter("canny_threshold1", canny_threshold1_));
-              this->set_parameter(rclcpp::Parameter("canny_threshold2", canny_threshold2_));
-              need_config_update_ = false;
-            }
             if (window_name_ == new_window_name)
             {
-              cv::createTrackbar("Min CannyThreshold1:", window_name_, &canny_threshold1_, max_canny_threshold1,
-                                 &EdgeDetectionNode::trackbarCallback, this);
-              cv::createTrackbar("Min CannyThreshold2:", window_name_, &canny_threshold2_, max_canny_threshold2,
-                                 &EdgeDetectionNode::trackbarCallback, this);
+              if (syncTrackbar("Min CannyThreshold1:", window_name_, canny_threshold1_, max_canny_threshold1))
+              {
+                this->set_parameter(rclcpp::Parameter("canny_threshold1", canny_threshold1_));
+              }
+              if (syncTrackbar("Min CannyThreshold2:", window_name_, canny_threshold2_, max_canny_threshold2))
+              {
+                this->set_parameter(rclcpp::Parameter("canny_threshold2", canny_threshold2_));
+              }
+              syncParamTrackbar(window_name_, "L2gradient", L2gradient_);
+              syncParamTrackbar(window_name_, "apply_blur_pre", apply_blur_pre_);
+              syncParamTrackbar(window_name_, "apertureSize", apertureSize_);
+              syncParamTrackbar(window_name_, "apply_blur_post", apply_blur_post_);
+              syncParamTrackbar(window_name_, "postBlurSize", postBlurSize_);
+              syncParamTrackbar(window_name_, "postBlurSigma", postBlurSigma_, 0.1);
             }
           }
           break;
@@ -240,6 +238,8 @@ class EdgeDetectionNode : public opencv_apps::Node
           window_name_ = new_window_name;
         }
         cv::imshow(window_name_, grad);
+        // Every method's window gets the method selector; it takes effect from the next frame
+        syncParamTrackbar(window_name_, "edge_type", edge_type_);
         cv::waitKey(1);
       }
 
@@ -289,7 +289,6 @@ public:
       always_subscribe_ = true;
     }
     prev_stamp_ = rclcpp::Time(0, 0);
-    need_config_update_ = false;
 
     window_name_ = "Edge Detection Demo";
 

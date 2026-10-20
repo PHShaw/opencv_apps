@@ -41,7 +41,7 @@
 #include <functional>
 #include <string>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -128,6 +128,16 @@ class ThresholdNode : public opencv_apps::Node
     try
     {
       cv::Mat src_image = cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::BGR8)->image;
+
+      if (debug_view_)
+      {
+        cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
+        syncParamTrackbar(window_name_, "threshold_type", threshold_type_);
+        syncParamTrackbar(window_name_, "threshold", threshold_value_);
+        syncParamTrackbar(window_name_, "max_binary", max_binary_value_);
+        syncParamTrackbar(window_name_, "apply_otsu", apply_otsu_);
+      }
+
       cv::Mat gray_image;
       cv::cvtColor(src_image, gray_image, cv::COLOR_BGR2GRAY);
       cv::Mat result_image;

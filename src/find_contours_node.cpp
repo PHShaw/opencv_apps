@@ -44,7 +44,7 @@
 #include <string>
 #include <vector>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -72,7 +72,6 @@ class FindContoursNode : public opencv_apps::Node
   int low_threshold_;
 
   std::string window_name_;
-  bool need_config_update_;
 
   bool use_camera_info_;
 
@@ -102,11 +101,6 @@ class FindContoursNode : public opencv_apps::Node
   void imageCallback(const sensor_msgs::msg::Image::ConstSharedPtr & msg)
   {
     doWork(msg, msg->header.frame_id);
-  }
-
-  static void trackbarCallback(int /*unused*/, void * userdata)
-  {
-    static_cast<FindContoursNode *>(userdata)->need_config_update_ = true;
   }
 
   void doWork(const sensor_msgs::msg::Image::ConstSharedPtr & msg, const std::string & /*input_frame_from_msg*/)
@@ -177,13 +171,10 @@ class FindContoursNode : public opencv_apps::Node
       /// Create a Trackbar for user to enter threshold
       if (debug_view_)
       {
-        if (need_config_update_)
+        if (syncTrackbar("Canny thresh:", window_name_, low_threshold_, max_thresh, 1))
         {
           this->set_parameter(rclcpp::Parameter("canny_low_threshold", low_threshold_));
-          need_config_update_ = false;
         }
-        cv::createTrackbar("Canny thresh:", window_name_, &low_threshold_, max_thresh,
-                            &FindContoursNode::trackbarCallback, this);
 
         cv::imshow(window_name_, drawing);
         cv::waitKey(1);
@@ -236,7 +227,6 @@ public:
       always_subscribe_ = true;
     }
     prev_stamp_ = rclcpp::Time(0, 0);
-    need_config_update_ = false;
 
     window_name_ = "Demo code to find contours in an image";
 

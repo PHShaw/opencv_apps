@@ -41,7 +41,7 @@
 #include <functional>
 #include <string>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -116,11 +116,8 @@ class DiscreteFourierTransformNode : public opencv_apps::Node
   {
     try
     {
-      cv::Mat src_image = cv_bridge::toCvShare(image_msg, image_msg->encoding)->image;
-      if (src_image.channels() > 1)
-      {
-        cv::cvtColor(src_image, src_image, cv::COLOR_BGR2GRAY);
-      }
+      // Let cv_bridge convert any input encoding (bgr8, rgb8, yuv422, ...) to gray
+      cv::Mat src_image = cv_bridge::toCvShare(image_msg, sensor_msgs::image_encodings::MONO8)->image;
 
       cv::Mat padded;  // expand input image to optimal size
       int m = cv::getOptimalDFTSize(src_image.rows);

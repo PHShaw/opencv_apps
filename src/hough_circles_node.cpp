@@ -45,7 +45,7 @@
 #include <string>
 #include <vector>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -81,7 +81,6 @@ class HoughCirclesNode : public opencv_apps::Node
   rclcpp::Time prev_stamp_;
 
   std::string window_name_;
-  bool need_config_update_;
 
   bool use_camera_info_;
   double canny_threshold_;
@@ -145,11 +144,6 @@ class HoughCirclesNode : public opencv_apps::Node
     doWork(msg, msg->header.frame_id);
   }
 
-  static void trackbarCallback(int /*unused*/, void * userdata)
-  {
-    static_cast<HoughCirclesNode *>(userdata)->need_config_update_ = true;
-  }
-
   void doWork(const sensor_msgs::msg::Image::ConstSharedPtr & msg, const std::string & /*input_frame_from_msg*/)
   {
     try
@@ -174,43 +168,49 @@ class HoughCirclesNode : public opencv_apps::Node
       {
         cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
 
-        cv::createTrackbar("Canny Threshold", window_name_, &canny_threshold_int_, 255,
-                            &HoughCirclesNode::trackbarCallback, this);
-        cv::createTrackbar("Accumulator Threshold", window_name_, &accumulator_threshold_int_, 200,
-                            &HoughCirclesNode::trackbarCallback, this);
-        cv::createTrackbar("Gaussian Blur Size", window_name_, &gaussian_blur_size_, 30,
-                            &HoughCirclesNode::trackbarCallback, this);
-        cv::createTrackbar("Gaussian Sigam X", window_name_, &gaussian_sigma_x_int_, 10,
-                            &HoughCirclesNode::trackbarCallback, this);
-        cv::createTrackbar("Gaussian Sigma Y", window_name_, &gaussian_sigma_y_int_, 10,
-                            &HoughCirclesNode::trackbarCallback, this);
-        cv::createTrackbar("Min Distance between Circles", window_name_, &min_distance_between_circles_int_, 100,
-                            &HoughCirclesNode::trackbarCallback, this);
-        cv::createTrackbar("Dp", window_name_, &dp_int_, 100, &HoughCirclesNode::trackbarCallback, this);
-        cv::createTrackbar("Min Circle Radius", window_name_, &min_circle_radius_, 500,
-                            &HoughCirclesNode::trackbarCallback, this);
-        cv::createTrackbar("Max Circle Radius", window_name_, &max_circle_radius_, 2000,
-                            &HoughCirclesNode::trackbarCallback, this);
-
-        if (need_config_update_)
+        if (syncTrackbar("Canny Threshold", window_name_, canny_threshold_int_, 255, 1))
         {
           canny_threshold_ = static_cast<double>(canny_threshold_int_);
-          accumulator_threshold_ = static_cast<double>(accumulator_threshold_int_);
-          gaussian_sigma_x_ = static_cast<double>(gaussian_sigma_x_int_);
-          gaussian_sigma_y_ = static_cast<double>(gaussian_sigma_y_int_);
-          min_distance_between_circles_ = static_cast<double>(min_distance_between_circles_int_);
-          dp_ = static_cast<double>(dp_int_);
           this->set_parameter(rclcpp::Parameter("canny_threshold", canny_threshold_));
-          this->set_parameter(rclcpp::Parameter("accumulator_threshold", accumulator_threshold_));
-          this->set_parameter(rclcpp::Parameter("gaussian_blur_size", gaussian_blur_size_));
-          this->set_parameter(rclcpp::Parameter("gaussian_sigma_x", gaussian_sigma_x_));
-          this->set_parameter(rclcpp::Parameter("gaussian_sigma_y", gaussian_sigma_y_));
-          this->set_parameter(rclcpp::Parameter("min_distance_between_circles", min_distance_between_circles_));
-          this->set_parameter(rclcpp::Parameter("dp", dp_));
-          this->set_parameter(rclcpp::Parameter("min_circle_radius", min_circle_radius_));
-          this->set_parameter(rclcpp::Parameter("max_circle_radius", max_circle_radius_));
-          need_config_update_ = false;
         }
+        if (syncTrackbar("Accumulator Threshold", window_name_, accumulator_threshold_int_, 200, 1))
+        {
+          accumulator_threshold_ = static_cast<double>(accumulator_threshold_int_);
+          this->set_parameter(rclcpp::Parameter("accumulator_threshold", accumulator_threshold_));
+        }
+        if (syncTrackbar("Gaussian Blur Size", window_name_, gaussian_blur_size_, 30, 1))
+        {
+          this->set_parameter(rclcpp::Parameter("gaussian_blur_size", gaussian_blur_size_));
+        }
+        if (syncTrackbar("Gaussian Sigam X", window_name_, gaussian_sigma_x_int_, 10, 1))
+        {
+          gaussian_sigma_x_ = static_cast<double>(gaussian_sigma_x_int_);
+          this->set_parameter(rclcpp::Parameter("gaussian_sigma_x", gaussian_sigma_x_));
+        }
+        if (syncTrackbar("Gaussian Sigma Y", window_name_, gaussian_sigma_y_int_, 10, 1))
+        {
+          gaussian_sigma_y_ = static_cast<double>(gaussian_sigma_y_int_);
+          this->set_parameter(rclcpp::Parameter("gaussian_sigma_y", gaussian_sigma_y_));
+        }
+        if (syncTrackbar("Min Distance between Circles", window_name_, min_distance_between_circles_int_, 100))
+        {
+          min_distance_between_circles_ = static_cast<double>(min_distance_between_circles_int_);
+          this->set_parameter(rclcpp::Parameter("min_distance_between_circles", min_distance_between_circles_));
+        }
+        if (syncTrackbar("Dp", window_name_, dp_int_, 100))
+        {
+          dp_ = static_cast<double>(dp_int_);
+          this->set_parameter(rclcpp::Parameter("dp", dp_));
+        }
+        if (syncTrackbar("Min Circle Radius", window_name_, min_circle_radius_, 500))
+        {
+          this->set_parameter(rclcpp::Parameter("min_circle_radius", min_circle_radius_));
+        }
+        if (syncTrackbar("Max Circle Radius", window_name_, max_circle_radius_, 2000))
+        {
+          this->set_parameter(rclcpp::Parameter("max_circle_radius", max_circle_radius_));
+        }
+        syncParamTrackbar(window_name_, "debug_image_type", debug_image_type_);
       }
 
       // Reduce the noise so we avoid false circle detection
@@ -349,7 +349,6 @@ public:
       always_subscribe_ = true;
     }
     prev_stamp_ = rclcpp::Time(0, 0);
-    need_config_update_ = false;
 
     window_name_ = "Hough Circle Detection Demo";
 

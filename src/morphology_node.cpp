@@ -43,7 +43,7 @@
 #include <functional>
 #include <string>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -108,6 +108,13 @@ class MorphologyNode : public opencv_apps::Node
       int morph_operator = this->get_parameter("morph_operator").as_int();
       int morph_element = this->get_parameter("morph_element").as_int();
       int morph_size = this->get_parameter("morph_size").as_int();
+
+      if (debug_view_)
+      {
+        syncParamTrackbar(window_name_, "morph_operator", morph_operator);
+        syncParamTrackbar(window_name_, "morph_element", morph_element);
+        syncParamTrackbar(window_name_, "morph_size", morph_size);
+      }
 
       cv::Mat element = cv::getStructuringElement(morph_element, cv::Size(2 * morph_size + 1, 2 * morph_size + 1),
                                                   cv::Point(morph_size, morph_size));

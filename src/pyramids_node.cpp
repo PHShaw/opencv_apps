@@ -43,7 +43,7 @@
 #include <functional>
 #include <string>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -114,7 +114,21 @@ class PyramidsNode : public opencv_apps::Node
   {
     try
     {
-      cv::Mat src_image = cv_bridge::toCvShare(image_msg, image_msg->encoding)->image;
+      // Keep the input encoding, except packed YUV and Bayer images, whose pixels
+      // can't be resized directly: convert those to bgr8
+      std::string encoding = image_msg->encoding;
+      if (sensor_msgs::image_encodings::isBayer(encoding) || sensor_msgs::image_encodings::numChannels(encoding) == 2)
+      {
+        encoding = sensor_msgs::image_encodings::BGR8;
+      }
+      cv::Mat src_image = cv_bridge::toCvShare(image_msg, encoding)->image;
+
+      if (debug_view_)
+      {
+        cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
+        syncParamTrackbar(window_name_, "pyramids_type", pyramids_type_);
+        syncParamTrackbar(window_name_, "num_of_pyramids", num_of_pyramids_);
+      }
 
       int num = num_of_pyramids_;
       switch (pyramids_type_)
@@ -142,7 +156,7 @@ class PyramidsNode : public opencv_apps::Node
         cv::waitKey(1);
       }
 
-      img_pub_.publish(*cv_bridge::CvImage(image_msg->header, image_msg->encoding, src_image).toImageMsg());
+      img_pub_.publish(*cv_bridge::CvImage(image_msg->header, encoding, src_image).toImageMsg());
     }
     catch (cv::Exception & e)
     {
@@ -188,7 +202,7 @@ public:
         "use_camera_info", false,
         describeParam("Indicates that the camera_info topic should be subscribed to to get the default "
                        "input_frame_id. Otherwise the frame from the image message will be used."));
-    this->declare_parameter("pyramids_type", static_cast<int>(PYRAMIDS_UP), describeIntParam("Pyramids Type: 0=Up (zoom in), 1=Down (zoom out)", 0, 2));
+    this->declare_parameter("pyramids_type", static_cast<int>(PYRAMIDS_UP), describeIntParam("Pyramids Type: 0=Up (zoom in), 1=Down (zoom out)", 0, 1));
     this->declare_parameter("num_of_pyramids", 1, describeIntParam("Number of pyramids", 1, 10));
     applyParams();
 

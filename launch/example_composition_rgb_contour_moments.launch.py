@@ -32,6 +32,9 @@ def generate_launch_description():
             'image', default_value='image',
             description='The camera image topic. Should be remapped to the name of the real image topic.'),
         DeclareLaunchArgument(
+            'debug_view', default_value='true',
+            description='Specify whether the node displays a window to show edge image'),
+        DeclareLaunchArgument(
             'container_name', default_value='opencv_apps_container',
             description='Name of the component container these nodes are loaded into.'),
 
@@ -52,6 +55,13 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'b_limit_max', default_value='100', description='The maximum allowed field value Blue'),
         DeclareLaunchArgument(
+            'filter_type', default_value='0',
+            description='Smoothing Filter Methods. 0:Homogeneous blur, 1:Gaussian blur, 2:Median blur, '
+                         '3:Bilateral Filter.'),
+        DeclareLaunchArgument(
+            'kernel_size', default_value='7',
+            description='Size of the kernel (only one because we use a square window). Must be odd.'),
+        DeclareLaunchArgument(
             'canny_low_threshold', default_value='100',
             description='Canny edge low threshold used by contour_moments to find contours in the mask.'),
 
@@ -66,7 +76,7 @@ def generate_launch_description():
                     plugin='opencv_apps::RGBColorFilterNode',
                     name='rgb_color_filter',
                     parameters=[{
-                        'debug_view': False,
+                        'debug_view': LaunchConfiguration('debug_view'),
                         'r_limit_min': LaunchConfiguration('r_limit_min'),
                         'r_limit_max': LaunchConfiguration('r_limit_max'),
                         'g_limit_min': LaunchConfiguration('g_limit_min'),
@@ -79,15 +89,29 @@ def generate_launch_description():
                 ),
                 ComposableNode(
                     package='opencv_apps',
-                    plugin='opencv_apps::ContourMomentsNode',
-                    name='contour_moments',
+                    plugin='opencv_apps::SmoothingNode',
+                    name='smoothing',
                     parameters=[{
-                        'debug_view': False,
-                        'canny_low_threshold': LaunchConfiguration('canny_low_threshold'),
+                        'debug_view': LaunchConfiguration('debug_view'),
+                        'filter_type': LaunchConfiguration('filter_type'),
+                        'kernel_size': LaunchConfiguration('kernel_size'),
                     }],
                     # Feed contour_moments' "image" input from rgb_color_filter's
                     # "~/image" output -- this is the pipeline connection.
                     remappings=[('image', 'rgb_color_filter/image')],
+                    extra_arguments=[{'use_intra_process_comms': True}],
+                ),
+                ComposableNode(
+                    package='opencv_apps',
+                    plugin='opencv_apps::ContourMomentsNode',
+                    name='contour_moments',
+                    parameters=[{
+                        'debug_view': LaunchConfiguration('debug_view'),
+                        'canny_low_threshold': LaunchConfiguration('canny_low_threshold'),
+                    }],
+                    # Feed contour_moments' "image" input from rgb_color_filter's
+                    # "~/image" output -- this is the pipeline connection.
+                    remappings=[('image', 'smoothing/image')],
                     extra_arguments=[{'use_intra_process_comms': True}],
                 ),
             ],

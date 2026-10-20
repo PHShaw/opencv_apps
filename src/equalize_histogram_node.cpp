@@ -42,7 +42,7 @@
 #include <functional>
 #include <string>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -118,26 +118,23 @@ class EqualizeHistogramNode : public opencv_apps::Node
   {
     try
     {
-      cv::UMat frame;
-      if (msg->encoding == sensor_msgs::image_encodings::BGR8)
-        frame = cv_bridge::toCvShare(msg, sensor_msgs::image_encodings::BGR8)->image.getUMat(cv::ACCESS_RW);
-      else if (msg->encoding == sensor_msgs::image_encodings::MONO8)
-        frame = cv_bridge::toCvShare(msg, sensor_msgs::image_encodings::MONO8)->image.getUMat(cv::ACCESS_RW);
+      // Let cv_bridge convert any input encoding (bgr8, rgb8, yuv422, ...) to gray
+      cv::UMat gray;
+      cv_bridge::toCvShare(msg, sensor_msgs::image_encodings::MONO8)->image.copyTo(gray);
 
       if (debug_view_)
       {
         cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
+        syncParamTrackbar(window_name_, "histogram_equalization_type", histogram_equalization_type_);
+        syncParamTrackbar(window_name_, "clahe_clip_limit", clahe_clip_limit_, 0.1);
+        int tile_x = clahe_tile_size_.width;
+        int tile_y = clahe_tile_size_.height;
+        syncParamTrackbar(window_name_, "clahe_tile_size_x", tile_x);
+        syncParamTrackbar(window_name_, "clahe_tile_size_y", tile_y);
+        clahe_tile_size_ = cv::Size(tile_x, tile_y);
       }
 
-      cv::UMat gray, dst;
-      if (frame.channels() > 1)
-      {
-        cv::cvtColor(frame, gray, cv::COLOR_BGR2GRAY);
-      }
-      else
-      {
-        frame.copyTo(gray);
-      }
+      cv::UMat dst;
 
       switch (histogram_equalization_type_)
       {

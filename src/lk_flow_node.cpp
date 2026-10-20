@@ -42,7 +42,7 @@
 #include <string>
 #include <vector>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -74,7 +74,6 @@ class LKFlowNode : public opencv_apps::Node
   rclcpp::Time prev_stamp_;
 
   std::string window_name_;
-  bool need_config_update_;
 
   bool use_camera_info_;
   double quality_level_;
@@ -123,11 +122,6 @@ class LKFlowNode : public opencv_apps::Node
     doWork(msg, msg->header.frame_id);
   }
 
-  static void trackbarCallback(int /*unused*/, void * userdata)
-  {
-    static_cast<LKFlowNode *>(userdata)->need_config_update_ = true;
-  }
-
   void doWork(const sensor_msgs::msg::Image::ConstSharedPtr & msg, const std::string & /*input_frame_from_msg*/)
   {
     try
@@ -141,15 +135,16 @@ class LKFlowNode : public opencv_apps::Node
       {
         cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
 
-        cv::createTrackbar("Min Distance", window_name_, &min_distance_, 100, &LKFlowNode::trackbarCallback, this);
-        cv::createTrackbar("Block Size", window_name_, &block_size_, 100, &LKFlowNode::trackbarCallback, this);
-
-        if (need_config_update_)
+        if (syncTrackbar("Min Distance", window_name_, min_distance_, 100, 1))
         {
           this->set_parameter(rclcpp::Parameter("min_distance", min_distance_));
-          this->set_parameter(rclcpp::Parameter("block_size", block_size_));
-          need_config_update_ = false;
         }
+        if (syncTrackbar("Block Size", window_name_, block_size_, 100, 1))
+        {
+          this->set_parameter(rclcpp::Parameter("block_size", block_size_));
+        }
+        syncParamTrackbar(window_name_, "quality_level", quality_level_, 0.001);
+        syncParamTrackbar(window_name_, "harris_k", harris_k_, 0.001);
       }
 
       cv::TermCriteria termcrit(cv::TermCriteria::MAX_ITER + cv::TermCriteria::EPS, 20, 0.03);
@@ -316,7 +311,6 @@ public:
     prev_stamp_ = rclcpp::Time(0, 0);
 
     window_name_ = "LK Demo";
-    need_config_update_ = false;
     MAX_COUNT = 500;
     needToInit = true;
     nightMode = false;

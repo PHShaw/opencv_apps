@@ -7,7 +7,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     # ROS 1's version of this launch file selected the Haar cascade path from a
     # matrix of use_opencv3/use_opencv3_1/.../use_opencv4 flags, needed because
-    # OpenCV was often built from source at varying versions/locations. Humble
+    # OpenCV was often built from source at varying versions/locations. Jazzy
     # targets a single system-installed OpenCV 4, so that whole matrix collapses
     # to one default path; face_cascade_name/eyes_cascade_name remain overridable
     # launch arguments for anyone with a nonstandard OpenCV install.

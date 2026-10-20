@@ -36,6 +36,7 @@
 #define OPENCV_APPS_NODE_HPP_
 
 #include <functional>
+#include <map>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -71,7 +72,7 @@ rcl_interfaces::msg::ParameterDescriptor describeDoubleParam(
  *
  * ROS 1's nodelet::Nodelet-derived equivalent used per-publisher
  * connect/disconnect callbacks (ros::SubscriberStatusCallback,
- * image_transport::SubscriberStatusCallback). As of Humble,
+ * image_transport::SubscriberStatusCallback). As of Jazzy (as in Humble),
  * image_transport's ROS 2 publishers do not implement subscriber
  * connect/disconnect callbacks (only getNumSubscribers() polling is
  * available), so this base class polls all watched publishers on a wall
@@ -166,6 +167,41 @@ protected:
    */
   void deferApplyParams(const std::function<void()> & apply_fn);
 
+  /** @brief
+   * Create a debug-view trackbar if it does not exist yet, and keep it in
+   * sync with `value` in both directions.
+   *
+   * Replaces cv::createTrackbar(name, window, &value, ...): OpenCV 4 has
+   * deprecated the value pointer (and warns on every call), and its Qt
+   * backend never copies later changes of `value` back to the slider. Call
+   * this every frame while the window is shown. A new trackbar starts at
+   * `value`; if `value` changed elsewhere (e.g. a parameter update) the
+   * slider is moved to match. Set `min_value` to the parameter's lower bound
+   * so the slider cannot select a value the parameter would reject.
+   *
+   * @return true if the user moved the slider, in which case `value` has
+   *         been updated to the slider's position and the caller should
+   *         store it (e.g. with set_parameter()).
+   */
+  bool syncTrackbar(const std::string & name, const std::string & window, int & value, int max_value,
+                    int min_value = 0);
+
+  /** @brief
+   * syncTrackbar() for a declared parameter: the slider is labelled with the
+   * parameter's name, limited to its declared range, and a slider move is
+   * stored with set_parameter().
+   *
+   * Decimal parameters move in steps of `step`; the slider shows the value
+   * divided by `step`, and its label gets an " xN" suffix when step < 1.
+   * Bool parameters are shown as a 0/1 slider.
+   *
+   * @return true if the user moved the slider (`value` and the parameter
+   *         have been updated).
+   */
+  bool syncParamTrackbar(const std::string & window, const std::string & param, int & value);
+  bool syncParamTrackbar(const std::string & window, const std::string & param, double & value, double step);
+  bool syncParamTrackbar(const std::string & window, const std::string & param, bool & value);
+
 private:
   void checkConnections();
   void warnNeverSubscribedCallback();
@@ -175,6 +211,8 @@ private:
   rclcpp::TimerBase::SharedPtr connection_timer_;
   rclcpp::TimerBase::SharedPtr never_subscribed_timer_;
   rclcpp::TimerBase::SharedPtr defer_apply_params_timer_;
+  // Last trackbar position seen by syncTrackbar(), keyed by (window, name)
+  std::map<std::pair<std::string, std::string>, int> trackbar_positions_;
   bool ever_subscribed_;
   ConnectionStatus connection_status_;
 };

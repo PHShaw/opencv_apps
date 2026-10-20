@@ -2,6 +2,50 @@
 Changelog for package opencv_apps
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+4.0.0 (2026-10-20)
+-----------
+* Upgrade the package from ROS 2 Humble to ROS 2 Jazzy.
+* Accept any input image encoding that ``cv_bridge`` can convert, including
+  ``usb_cam``'s default ``yuv422_yuy2`` (YUYV):
+
+  * ``contour_moments``, ``discrete_fourier_transform`` and
+    ``equalize_histogram`` convert their input straight to ``mono8`` instead
+    of assuming BGR (or, for ``equalize_histogram``, ignoring anything but
+    ``bgr8`` and ``mono8``).
+  * ``pyramids`` converts packed YUV and Bayer input to ``bgr8``, and keeps
+    other encodings as before.
+
+* ``contour_moments`` fixes:
+
+  * Fix a crash in the debug window when nothing subscribed to the output
+    image (the contour drawing was only made for subscribers).
+  * Give zero-area contours the mean of their points as their centre, instead
+    of NaN.
+  * Compute each contour's moments once, instead of every contour's moments
+    once per contour.
+  * Log per-contour details at DEBUG level instead of INFO.
+
+* Debug-window sliders:
+
+  * Replace ``cv::createTrackbar``'s deprecated value pointer, which made
+    OpenCV 4 warn on every frame, with ``Node::syncTrackbar()``. Sliders now
+    also follow ``ros2 param set`` changes, and are limited to their
+    parameter's declared range.
+  * Add ``Node::syncParamTrackbar()`` for whole-number, decimal and on/off
+    parameters, and use it to add sliders for every tunable parameter of
+    ``adding_images``, the four colour filters, ``edge_detection`` (including
+    ``edge_type``), ``equalize_histogram``, ``hough_circles``,
+    ``hough_lines``, ``lk_flow``, ``morphology``, ``people_detect``,
+    ``pyramids``, ``smoothing`` (including ``filter_type``) and
+    ``threshold``, and a ``canny_low_threshold`` slider for
+    ``contour_moments``.
+
+* Limit ``pyramids_type`` to 0–1, as there are only two types.
+* Default ``face_detection``'s cascade paths to ``/usr/share/opencv4``, where
+  OpenCV 4 installs them.
+* Add ``doc/nodes.md``, a reference for every node's topics, services and
+  parameters.
+
 3.0.0 (2026-07-15)
 ------------------
 * Port the package to ROS 2 Humble. Highlights:

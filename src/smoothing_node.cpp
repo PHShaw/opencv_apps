@@ -43,7 +43,7 @@
 #include <functional>
 #include <string>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -81,16 +81,10 @@ class SmoothingNode : public opencv_apps::Node
   rclcpp::Time prev_stamp_;
 
   std::string window_name_;
-  bool need_config_update_;
   int filter_type_;
   int kernel_size_;
 
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr on_set_params_handle_;
-
-  static void trackbarCallback(int /*unused*/, void * userdata)
-  {
-    static_cast<SmoothingNode *>(userdata)->need_config_update_ = true;
-  }
 
   void applyParams()
   {
@@ -129,13 +123,11 @@ class SmoothingNode : public opencv_apps::Node
       {
         char kernel_label[] = "Kernel Size : ";
         cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
-        cv::createTrackbar(kernel_label, window_name_, &kernel_size_, kMaxKernelLength,
-                            &SmoothingNode::trackbarCallback, this);
-        if (need_config_update_)
+        syncParamTrackbar(window_name_, "filter_type", filter_type_);
+        if (syncTrackbar(kernel_label, window_name_, kernel_size_, kMaxKernelLength, 1))
         {
           kernel_size_ = (kernel_size_ / 2) * 2 + 1;
           this->set_parameter(rclcpp::Parameter("kernel_size", kernel_size_));
-          need_config_update_ = false;
         }
       }
 
@@ -207,7 +199,6 @@ public:
     }
     prev_stamp_ = rclcpp::Time(0, 0);
     window_name_ = "Smoothing Demo";
-    need_config_update_ = false;
 
     this->declare_parameter(
         "use_camera_info", false,

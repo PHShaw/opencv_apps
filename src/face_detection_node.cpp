@@ -43,7 +43,7 @@
 #include <functional>
 #include <string>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <image_transport/image_transport.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -238,10 +238,10 @@ public:
         this->add_on_set_parameters_callback(std::bind(&FaceDetectionNode::onParamChange, this, std::placeholders::_1));
 
     std::string face_cascade_name = this->declare_parameter(
-        "face_cascade_name", std::string("/usr/share/opencv/haarcascades/haarcascade_frontalface_alt.xml"),
+        "face_cascade_name", std::string("/usr/share/opencv4/haarcascades/haarcascade_frontalface_alt.xml"),
         describeParam("Path to the face Haar cascade XML file."));
     std::string eyes_cascade_name = this->declare_parameter(
-        "eyes_cascade_name", std::string("/usr/share/opencv/haarcascades/haarcascade_eye_tree_eyeglasses.xml"),
+        "eyes_cascade_name", std::string("/usr/share/opencv4/haarcascades/haarcascade_eye_tree_eyeglasses.xml"),
         describeParam("Path to the eyes Haar cascade XML file."));
 
     if (!face_cascade_.load(face_cascade_name))

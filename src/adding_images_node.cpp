@@ -42,7 +42,7 @@
 #include <functional>
 #include <string>
 
-#include <cv_bridge/cv_bridge.h>
+#include <cv_bridge/cv_bridge.hpp>
 #include <opencv2/opencv.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
@@ -208,6 +208,20 @@ class AddingImagesNode : public opencv_apps::Node
         cv::Mat image2_tmp = cv::Mat(new_rows, new_cols, image2.type());
         image2.copyTo(image2_tmp(cv::Rect(0, 0, image2.cols, image2.rows)));
         image2 = image2_tmp.clone();
+      }
+      if (debug_view_)
+      {
+        cv::namedWindow(window_name_, cv::WINDOW_AUTOSIZE);
+        bool changed = syncParamTrackbar(window_name_, "alpha", alpha_, 0.01);
+        changed |= syncParamTrackbar(window_name_, "auto_beta", auto_beta_);
+        // beta_ holds 1 - alpha when auto_beta is set, so slide the parameter's own value
+        double beta = this->get_parameter("beta").as_double();
+        changed |= syncParamTrackbar(window_name_, "beta", beta, 0.01);
+        changed |= syncParamTrackbar(window_name_, "gamma", gamma_, 1.0);
+        if (changed)
+        {
+          beta_ = auto_beta_ ? 1.0 - alpha_ : beta;
+        }
       }
       cv::addWeighted(image1, alpha_, image2, beta_, gamma_, result_image);
 
