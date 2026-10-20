@@ -5,7 +5,11 @@ on: [push, pull_request]
 jobs:
   build-and-test:
     name: Jazzy build and test
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    # Run in a clean ROS image: directly on the GitHub runner image, rclpy
+    # couldn't load librcl_action.so when the tests ran
+    container:
+      image: rostooling/setup-ros-docker:ubuntu-noble-latest
     steps:
       - name: Set up ROS 2 Jazzy
         uses: ros-tooling/setup-ros@v0.7
